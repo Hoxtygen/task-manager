@@ -1,16 +1,20 @@
 package com.codeplanks.taskManager.repository;
 
+import com.codeplanks.taskManager.model.task.Status;
 import com.codeplanks.taskManager.model.task.Task;
+import com.codeplanks.taskManager.model.task.TaskRequestDTO;
+import com.codeplanks.taskManager.model.task.TaskResponseDTO;
 import com.codeplanks.taskManager.utils.LogUtils;
 import io.vertx.core.Future;
+import io.vertx.sqlclient.Row;
 import io.vertx.sqlclient.RowIterator;
 import io.vertx.sqlclient.SqlConnection;
+import io.vertx.sqlclient.Tuple;
 import io.vertx.sqlclient.templates.RowMapper;
 import io.vertx.sqlclient.templates.SqlTemplate;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.NoSuchElementException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -21,17 +25,21 @@ public class TaskRepository {
     TaskRepository.class
   );
 
-  // private static final String SQL_SELECT_ALL =
-  //   "SELECT * FROM tasks LIMIT @limit OFFSET @offset";
   private static final String SQL_SELECT_ALL =
-    "SELECT * FROM tasks LIMIT #{limit} OFFSET #{offset}";
+    "SELECT id, title, description, status, due_date, created_at, updated_at FROM tasks LIMIT $1 OFFSET $2";
+
   private static final String SQL_SELECT_BY_ID =
-    "SELECT * FROM tasks WHERE id = #{id}";
+    "SELECT id, title, description, status, due_date, created_at, updated_at FROM tasks WHERE id = $1";
+
   private static final String SQL_INSERT =
-    "INSERT INTO tasks (...) VALUES (...) RETURNING id";
+    "INSERT INTO tasks (title, description, status, due_date) " +
+    "VALUES ($1, $2, $3, $4) RETURNING id, title, description, status, due_date, created_at, updated_at";
+
   private static final String SQL_UPDATE =
     "UPDATE tasks SET ... WHERE id = @id";
+
   private static final String SQL_DELETE = "DELETE FROM tasks WHERE id = @id";
+
   private static final String SQL_COUNT = "SELECT COUNT(*) AS total FROM tasks";
 
   public TaskRepository() {}
@@ -48,58 +56,95 @@ public class TaskRepository {
     int limit,
     int offset
   ) {
-    return SqlTemplate
-      .forQuery(connection, SQL_SELECT_ALL)
-      .mapTo(Task.class)
-      .execute(Map.of("limit", limit, "offset", offset))
+    return connection
+      .preparedQuery(SQL_SELECT_ALL)
+      .execute(Tuple.of(limit, offset))
       .map(rowSet -> {
         final List<Task> tasks = new ArrayList<Task>();
-        rowSet.forEach(tasks::add);
+        for (Row row : rowSet) {
+          Task task = new Task();
+          task.setId(row.getInteger("id"));
+          task.setTitle(row.getString("title"));
+          task.setDescription(row.getString("description"));
+          task.setStatus(Status.valueOf(row.getString("status")));
+          task.setDueDate(row.getLocalDateTime("due_date"));
+          task.setCreatedAt(row.getLocalDateTime("created_at"));
+          task.setUpdatedAt(row.getLocalDateTime("updated_at"));
+          tasks.add(task);
+        }
         return tasks;
       });
   }
 
   public Future<Integer> count(SqlConnection connection) {
-    final RowMapper<Integer> ROW_MAPPER = row -> row.getInteger("total");
-
-    return SqlTemplate
-      .forQuery(connection, SQL_COUNT)
-      .mapTo(ROW_MAPPER)
-      .execute(Collections.emptyMap())
-      .map(rowSet -> rowSet.iterator().hasNext() ? rowSet.iterator().next() : 0
-      );
+    return connection
+      .preparedQuery(SQL_COUNT)
+      .execute()
+      .map(rowSet -> {
+        if (rowSet.iterator().hasNext()) {
+          Row row = rowSet.iterator().next();
+          return row.getInteger("total");
+        } else {
+          return 0;
+        }
+      });
   }
 
- public Future<Task> getByTaskId(SqlConnection connection, int taskId) {
-    return SqlTemplate
-      .forQuery(connection, SQL_SELECT_BY_ID)
-      .mapTo(Task.class)
-      .execute(Collections.singletonMap("id", taskId))
+  public Future<Task> getByTaskId(SqlConnection connection, int taskId) {
+    return connection
+      .preparedQuery(SQL_SELECT_BY_ID)
+      .execute(Tuple.of(taskId))
       .map(rowSet -> {
-        final RowIterator<Task> iterator = rowSet.iterator();
+        final RowIterator<Row> iterator = rowSet.iterator();
         if (iterator.hasNext()) {
-          return iterator.next();
+          Row row = iterator.next();
+          Task task = new Task();
+          task.setId(row.getInteger("id"));
+          task.setTitle(row.getString("title"));
+          task.setDescription(row.getString("description"));
+          task.setStatus(Status.valueOf(row.getString("status")));
+          task.setDueDate(row.getLocalDateTime("due_date"));
+          task.setCreatedAt(row.getLocalDateTime("created_at"));
+          task.setUpdatedAt(row.getLocalDateTime("updated_at"));
+          return task;
         } else {
           throw new NoSuchElementException(
             LogUtils.NO_BOOK_WITH_ID_MESSAGE.buildMessage(taskId)
           );
         }
-      })
-      .onSuccess(success ->
-        logger.info(
-          LogUtils.REGULAR_CALL_SUCCESS_MESSAGE.buildMessage(
-            "Get task by id",
-            SQL_SELECT_BY_ID
-          )
+      });
+  }
+
+  public Future<TaskResponseDTO> insert(
+    SqlConnection connection,
+    TaskRequestDTO task
+  ) {
+    return connection
+      .preparedQuery(SQL_INSERT)
+      .execute(
+        Tuple.of(
+          task.getTitle(),
+          task.getDescription(),
+          task.getStatus().toString(),
+          task.getDueDate()
         )
       )
-      .onFailure(err ->
-        logger.error(
-          LogUtils.REGULAR_CALL_ERROR_MESSAGE.buildMessage(
-            "Get book by id",
-            err.getMessage()
-          )
-        )
-      );
+      .map(rowSet -> {
+        final RowIterator<Row> iterator = rowSet.iterator();
+        System.out.println("iterator:" + iterator.toString());
+        if (iterator.hasNext()) {
+          Row row = iterator.next();
+          return new TaskResponseDTO(
+            row.getInteger("id"),
+            task,
+            row.getLocalDateTime("created_at"),
+            row.getLocalDateTime("updated_at")
+          );
+        } else {
+          throw new IllegalStateException(
+            LogUtils.CANNOT_CREATE_BOOK_MESSAGE.buildMessage(null)
+          );
+        }
+      });
   }
 }

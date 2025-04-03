@@ -1,6 +1,7 @@
 package com.codeplanks.taskManager.service;
 
 import com.codeplanks.taskManager.model.task.AllTaskResponse;
+import com.codeplanks.taskManager.model.task.TaskRequestDTO;
 import com.codeplanks.taskManager.model.task.TaskResponseDTO;
 import com.codeplanks.taskManager.repository.TaskRepository;
 import com.codeplanks.taskManager.utils.LogUtils;
@@ -26,8 +27,14 @@ public class TaskService {
     this.taskRepository = taskRepository;
   }
 
+  /**
+   * Get all tasks
+   *
+   * @param page
+   * @param limit
+   * @return {@link AllTaskResponse}
+   */
   public Future<AllTaskResponse> getAllTasks(String page, String limit) {
-    // obtain a connection from the pool
     return dbClient
       .withTransaction(connection -> {
         final int pageNumber = QueryUtils.getPage(page);
@@ -71,6 +78,12 @@ public class TaskService {
       );
   }
 
+  /**
+   * Get task by id
+   *
+   * @param taskId
+   * @return {@link TaskResponseDTO}
+   */
   public Future<TaskResponseDTO> getTaskById(int taskId) {
     return dbClient
       .withTransaction(connection -> {
@@ -90,6 +103,29 @@ public class TaskService {
         logger.error(
           LogUtils.REGULAR_CALL_ERROR_MESSAGE.buildMessage(
             "Get one task",
+            throwable.getMessage()
+          )
+        )
+      );
+  }
+
+  public Future<TaskResponseDTO> createTask(TaskRequestDTO taskRequestDTO) {
+    return dbClient
+      .withTransaction(connection ->
+        taskRepository.insert(connection, taskRequestDTO)
+      )
+      .onSuccess(success ->
+        logger.info(
+          LogUtils.REGULAR_CALL_SUCCESS_MESSAGE.buildMessage(
+            "Insert task",
+            success
+          )
+        )
+      )
+      .onFailure(throwable ->
+        logger.error(
+          LogUtils.REGULAR_CALL_ERROR_MESSAGE.buildMessage(
+            "Insert task",
             throwable.getMessage()
           )
         )
