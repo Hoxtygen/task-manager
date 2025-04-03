@@ -10,10 +10,7 @@ import io.vertx.sqlclient.Row;
 import io.vertx.sqlclient.RowIterator;
 import io.vertx.sqlclient.SqlConnection;
 import io.vertx.sqlclient.Tuple;
-import io.vertx.sqlclient.templates.RowMapper;
-import io.vertx.sqlclient.templates.SqlTemplate;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.NoSuchElementException;
 import org.slf4j.Logger;
@@ -38,7 +35,7 @@ public class TaskRepository {
   private static final String SQL_UPDATE =
     "UPDATE tasks SET ... WHERE id = @id";
 
-  private static final String SQL_DELETE = "DELETE FROM tasks WHERE id = @id";
+  private static final String SQL_DELETE = "DELETE FROM tasks WHERE id = $1";
 
   private static final String SQL_COUNT = "SELECT COUNT(*) AS total FROM tasks";
 
@@ -109,7 +106,7 @@ public class TaskRepository {
           return task;
         } else {
           throw new NoSuchElementException(
-            LogUtils.NO_BOOK_WITH_ID_MESSAGE.buildMessage(taskId)
+            LogUtils.NO_TASK_WITH_ID_MESSAGE.buildMessage(taskId)
           );
         }
       });
@@ -142,8 +139,38 @@ public class TaskRepository {
           );
         } else {
           throw new IllegalStateException(
-            LogUtils.CANNOT_CREATE_BOOK_MESSAGE.buildMessage(null)
+            LogUtils.CANNOT_CREATE_TASK_MESSAGE.buildMessage(null)
           );
+        }
+      });
+  }
+
+  public Future<Void> deleteTask(SqlConnection connection, int taskId) {
+    return connection
+      .preparedQuery(SQL_DELETE)
+      .execute(Tuple.of(taskId))
+      .flatMap(rowSet -> {
+        if (rowSet.rowCount() > 0) {
+          logger.info(
+            LogUtils.REGULAR_CALL_SUCCESS_MESSAGE.buildMessage(
+              "Delete task",
+              "Task Id",
+              SQL_DELETE
+            )
+          );
+          return Future.succeededFuture();
+        } else {
+          String errorMessage = LogUtils.NO_TASK_WITH_ID_MESSAGE.buildMessage(
+            taskId
+          );
+
+          logger.error(
+            LogUtils.REGULAR_CALL_ERROR_MESSAGE.buildMessage(
+              "Delete task",
+              errorMessage
+            )
+          );
+           return Future.failedFuture(new NoSuchElementException(errorMessage));
         }
       });
   }

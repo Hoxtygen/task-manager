@@ -42,6 +42,11 @@ public class TaskRouter {
       .handler(LoggerHandler.create(LoggerFormat.DEFAULT))
       .handler(taskController::createNewTask);
 
+    taskRouter
+      .delete("/tasks/:taskId")
+      .handler(LoggerHandler.create(LoggerFormat.DEFAULT))
+      .handler(taskController::deleteTask);
+
     return taskRouter;
   }
 }

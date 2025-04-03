@@ -131,4 +131,27 @@ public class TaskService {
         )
       );
   }
+
+  public Future<Void> deleteTask(int taskId) {
+    return dbClient.withTransaction(connection -> {
+      return taskRepository
+        .deleteTask(connection, taskId)
+        .onSuccess(succes ->
+          logger.info(
+            LogUtils.REGULAR_CALL_SUCCESS_MESSAGE.buildMessage(
+              "Delete a task",
+              taskId
+            )
+          )
+        )
+        .onFailure(throwable ->
+          logger.error(
+            LogUtils.REGULAR_CALL_ERROR_MESSAGE.buildMessage(
+              "Delete a task",
+              throwable.getMessage()
+            )
+          )
+        );
+    });
+  }
 }
