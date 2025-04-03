@@ -57,6 +57,28 @@ public class ResponseUtils {
   }
 
   /**
+   * Build success response using 200  as its status code
+   * when a resource is deleted successfully
+   *
+   * @param rc Routing context
+   */
+  public static void buildDeletedSuccessResponse(
+    RoutingContext rc,
+    Object response
+  ) {
+    JsonObject jsonResponse = new JsonObject()
+      .put("status", 200)
+      .put("message", "Item deleted successfully")
+      .put("data", JsonObject.mapFrom(response));
+
+    rc
+      .response()
+      .setStatusCode(200)
+      .putHeader(CONTENT_TYPE_HEADER, APPLICATION_JSON)
+      .end(jsonResponse.encodePrettily());
+  }
+
+  /**
    * Build error response using 400 Bad Request, 404 Not Found or 500 Internal Server Error
    * as its status code and throwable as its body
    *
@@ -91,7 +113,7 @@ public class ResponseUtils {
       .put("status", status)
       .put("message", message)
       .put("error", throwable.getMessage());
-      System.out.println("Throwable:" + throwable.getStackTrace().toString());
+    System.out.println("Throwable:" + throwable.getStackTrace().toString());
 
     rc
       .response()
